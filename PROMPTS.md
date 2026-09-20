@@ -1,5 +1,3 @@
-Create a git repository. Commit current state. Create new remote repository vocab-trainer and push.
-
 Enable the app to remember setup in config file so that user does not need to setup every time. Commit and push.
 
 When foreign language phrase contains blocks delimited by "pipe" (`|`), they are possible alternatives. Any of these phrases is acceptable answer.
@@ -7,6 +5,8 @@ When foreign language phrase contains blocks delimited by "pipe" (`|`), they are
 Each practice will consist of given number of phrases. Let user choose the length of training during setup. During practice, show progress bar. Only correct answers counts, fails does not count to the progress.
 
 ==================
+
+DONE: Create a git repository. Commit current state. Create new remote repository vocab-trainer and push.
 
 DONE: Sounds fine. Now move current option "Edit Phrases..." to menu "Vocabulary" (it is already there). The button will be "Edit Phrase ..." and will edit current phrase - native language phrase will become editable and answer textfield will show correct answer and allow to edit it.
 

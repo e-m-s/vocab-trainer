@@ -52,6 +52,12 @@ def format_last(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def split_alternatives(text):
+    """Split a foreign-phrase cell on '|' into acceptable alternative answers."""
+    parts = (p.strip() for p in str(text).split("|"))
+    return [p for p in parts if p]
+
+
 def to_int(value, default=0):
     try:
         if value is None or (isinstance(value, float) and pd.isna(value)):
@@ -490,8 +496,9 @@ class PracticeFrame(ttk.Frame):
         cols = self.app.cols
         idx = self.current_idx
         user_answer = self.answer_var.get().strip()
-        correct_answer = str(self.app.df.at[idx, cols.foreign]).strip()
-        is_correct = user_answer.lower() == correct_answer.lower()
+        alternatives = split_alternatives(self.app.df.at[idx, cols.foreign])
+        is_correct = any(user_answer.lower() == alt.lower() for alt in alternatives)
+        display_answer = " / ".join(alternatives)
 
         record_attempt(self.app.df, idx, cols, is_correct)
         self.app.mark_dirty()
@@ -501,7 +508,7 @@ class PracticeFrame(ttk.Frame):
         else:
             self.feedback_label.config(text="Wrong.", foreground="#c0392b")
         self.detail_label.config(
-            text=f"Your answer:    {user_answer or '(empty)'}\nCorrect answer: {correct_answer}"
+            text=f"Your answer:    {user_answer or '(empty)'}\nCorrect answer: {display_answer}"
         )
         self.answer_entry.config(state="readonly")
         self.action_button.config(text="Next")

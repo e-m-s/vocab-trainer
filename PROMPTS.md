@@ -1,8 +1,9 @@
-When a foreign language phrase contains blocks delimited by "pipe" (`|`), the blocks are possible alternatives. Any of these phrases is acceptable answer.
 
-Each practice will consist of given number of phrases. Let user choose the length of training during setup. During practice, show progress bar. Only correct answers counts, fails does not count to the progress.
+Each practice will consist of given number of phrases. Let user choose the length of training during setup. During practice, show progress bar. Only correct answers counts, fails does not count to the progress. After finishing the practice, show message and enable to start new practic.
 
 ==================
+
+DONE: When a foreign language phrase contains blocks delimited by "pipe" (`|`), the blocks are possible alternatives. Any of these phrases is acceptable answer.
 
 DONE: Enable the app to remember setup in config file so that user does not need to setup every time. Commit and push.
 

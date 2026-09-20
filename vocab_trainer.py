@@ -231,11 +231,17 @@ class SetupFrame(ttk.Frame):
         self.mapping_frame = ttk.Frame(self)
         self.mapping_frame.grid(row=3, column=0, columnspan=3, sticky="w", pady=15)
 
+        ttk.Label(self, text="Phrases per practice session:").grid(row=4, column=0, sticky="w")
+        self.length_var = tk.StringVar(value="20")
+        self.length_entry = ttk.Entry(self, textvariable=self.length_var, width=10)
+        self.length_entry.grid(row=4, column=1, sticky="w")
+        self.length_entry.bind("<KeyRelease>", lambda e: self.validate())
+
         self.start_button = ttk.Button(self, text="Start Practice", command=self.start_practice, state="disabled")
-        self.start_button.grid(row=4, column=0, pady=15, sticky="w")
+        self.start_button.grid(row=5, column=0, pady=15, sticky="w")
 
     def on_show(self):
-        pass
+        self.length_var.set(str(self.app.practice_length))
 
     def open_file(self):
         path = filedialog.askopenfilename(
@@ -313,6 +319,8 @@ class SetupFrame(ttk.Frame):
                 ok = False
             elif val == CREATE_NEW and not self.role_entries[role].get().strip():
                 ok = False
+        if to_int(self.length_var.get(), default=0) <= 0:
+            ok = False
         self.start_button.config(state="normal" if ok else "disabled")
 
     def start_practice(self):
@@ -341,6 +349,7 @@ class SetupFrame(ttk.Frame):
         self.app.sheet_name = sheet
         self.app.df = df
         self.app.cols = ColumnMap(**resolved)
+        self.app.practice_length = to_int(self.length_var.get(), default=20)
         self.app.on_data_ready()
 
 
@@ -354,51 +363,106 @@ class PracticeFrame(ttk.Frame):
         self.app = app
         self.state = "ask"
         self.current_idx = None
+        self.session_target = None
+        self.session_correct = 0
 
         self.progress_label = ttk.Label(self, text="", foreground="#555555")
         self.progress_label.grid(row=0, column=0, columnspan=2, sticky="w")
 
+        self.progress_bar = ttk.Progressbar(self, orient="horizontal", length=300, mode="determinate")
+        self.progress_bar.grid(row=1, column=0, columnspan=2, pady=(8, 2), sticky="w")
+
+        self.session_label = ttk.Label(self, text="", foreground="#555555")
+        self.session_label.grid(row=2, column=0, columnspan=2, sticky="w")
+
         self.native_label = ttk.Label(self, text="", font=("", 22, "bold"), wraplength=560)
-        self.native_label.grid(row=1, column=0, columnspan=2, pady=(30, 20), sticky="w")
+        self.native_label.grid(row=3, column=0, columnspan=2, pady=(30, 20), sticky="w")
 
         self.native_var = tk.StringVar()
         self.native_entry = ttk.Entry(self, textvariable=self.native_var, font=("", 22), width=36)
-        self.native_entry.grid(row=1, column=0, columnspan=2, pady=(30, 20), sticky="w")
+        self.native_entry.grid(row=3, column=0, columnspan=2, pady=(30, 20), sticky="w")
         self.native_entry.grid_remove()
         self.native_entry.bind("<Return>", self.on_enter)
         self.native_entry.bind("<Escape>", lambda e: self.cancel_edit())
 
         self.answer_var = tk.StringVar()
         self.answer_entry = ttk.Entry(self, textvariable=self.answer_var, font=("", 16), width=36)
-        self.answer_entry.grid(row=2, column=0, pady=5, sticky="w")
+        self.answer_entry.grid(row=4, column=0, pady=5, sticky="w")
         self.answer_entry.bind("<Return>", self.on_enter)
         self.answer_entry.bind("<Escape>", lambda e: self.cancel_edit())
 
         self.action_button = ttk.Button(self, text="Submit", command=self.on_enter)
-        self.action_button.grid(row=2, column=1, padx=10, sticky="w")
+        self.action_button.grid(row=4, column=1, padx=10, sticky="w")
 
         self.feedback_label = ttk.Label(self, text="", font=("", 14, "bold"))
-        self.feedback_label.grid(row=3, column=0, columnspan=2, pady=(20, 5), sticky="w")
+        self.feedback_label.grid(row=5, column=0, columnspan=2, pady=(20, 5), sticky="w")
 
         self.detail_label = ttk.Label(self, text="", font=("", 12), foreground="#333333", justify="left")
-        self.detail_label.grid(row=4, column=0, columnspan=2, sticky="w")
+        self.detail_label.grid(row=6, column=0, columnspan=2, sticky="w")
 
         self.edit_button = ttk.Button(self, text="Edit Phrase…", command=self.start_edit)
-        self.edit_button.grid(row=5, column=0, pady=(40, 0), sticky="w")
+        self.edit_button.grid(row=7, column=0, pady=(40, 0), sticky="w")
 
         self.save_edit_button = ttk.Button(self, text="Save", command=self.save_edit)
-        self.save_edit_button.grid(row=5, column=0, pady=(40, 0), sticky="w")
+        self.save_edit_button.grid(row=7, column=0, pady=(40, 0), sticky="w")
         self.save_edit_button.grid_remove()
 
         self.cancel_edit_button = ttk.Button(self, text="Cancel", command=self.cancel_edit)
-        self.cancel_edit_button.grid(row=5, column=1, pady=(40, 0), sticky="w")
+        self.cancel_edit_button.grid(row=7, column=1, pady=(40, 0), sticky="w")
         self.cancel_edit_button.grid_remove()
 
     def on_show(self):
+        if self.session_target is None:
+            self.begin_session()
+            return
+        if self.state == "complete":
+            return
         self.load_next()
 
+    def reset_session(self):
+        self.session_target = None
+
+    def begin_session(self):
+        self.session_target = self.app.practice_length
+        self.session_correct = 0
+        self.action_button.config(command=self.on_enter)
+        self.edit_button.config(state="normal")
+        self.update_session_progress()
+        self.load_next()
+
+    def start_new_practice(self):
+        self.session_correct = 0
+        self.action_button.config(command=self.on_enter)
+        self.edit_button.config(state="normal")
+        self.update_session_progress()
+        self.load_next()
+
+    def update_session_progress(self):
+        target = self.session_target or 1
+        self.progress_bar.config(maximum=target, value=min(self.session_correct, target))
+        self.session_label.config(
+            text=f"{self.session_correct} / {self.session_target} correct this session"
+        )
+
     def load_next(self):
+        if self.session_target is not None and self.session_correct >= self.session_target:
+            self.show_complete()
+            return
         self.show_phrase(pick_next_index(self.app.df, self.app.cols))
+
+    def show_complete(self):
+        self.current_idx = None
+        self.state = "complete"
+        self.native_entry.grid_remove()
+        self.native_label.grid()
+        self.native_label.config(text=f"Practice complete! {self.session_correct}/{self.session_target} correct.")
+        self.answer_var.set("")
+        self.answer_entry.config(state="disabled")
+        self.feedback_label.config(text="")
+        self.detail_label.config(text="")
+        self.edit_button.config(state="disabled")
+        self.action_button.config(text="Start New Practice", state="normal", command=self.start_new_practice)
+        self.update_session_progress()
 
     def show_phrase(self, idx):
         if idx is None or idx not in self.app.df.index:
@@ -418,11 +482,12 @@ class PracticeFrame(ttk.Frame):
         self.answer_var.set("")
         self.feedback_label.config(text="")
         self.detail_label.config(text="")
-        self.action_button.config(text="Submit", state="normal")
+        self.action_button.config(text="Submit", state="normal", command=self.on_enter)
         self.answer_entry.config(state="normal")
         self.answer_entry.focus_set()
         self.edit_button.config(state="normal")
         self.update_progress()
+        self.update_session_progress()
 
     def update_progress(self):
         df, cols = self.app.df, self.app.cols
@@ -502,6 +567,10 @@ class PracticeFrame(ttk.Frame):
 
         record_attempt(self.app.df, idx, cols, is_correct)
         self.app.mark_dirty()
+
+        if is_correct:
+            self.session_correct += 1
+        self.update_session_progress()
 
         if is_correct:
             self.feedback_label.config(text="Correct!", foreground="#1a7f37")
@@ -652,6 +721,7 @@ class App(tk.Tk):
         self.sheet_name = None
         self.df = None
         self.cols = None
+        self.practice_length = 20
         self.dirty = False
 
         container = ttk.Frame(self)
@@ -697,6 +767,7 @@ class App(tk.Tk):
 
     def on_data_ready(self):
         self.update_title_dirty()
+        self.frames["practice"].reset_session()
         self.show_frame("practice")
         self.remember_setup()
 
@@ -705,6 +776,7 @@ class App(tk.Tk):
             "path": self.store.path,
             "sheet": self.sheet_name,
             "columns": {role: getattr(self.cols, role) for role in COLUMN_ROLES},
+            "practice_length": self.practice_length,
         }
         try:
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -741,6 +813,7 @@ class App(tk.Tk):
         self.sheet_name = sheet
         self.df = df
         self.cols = ColumnMap(**{role: columns[role] for role in COLUMN_ROLES})
+        self.practice_length = to_int(data.get("practice_length"), default=20) or 20
         self.on_data_ready()
         return True
 

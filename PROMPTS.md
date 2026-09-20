@@ -1,10 +1,10 @@
-Enable the app to remember setup in config file so that user does not need to setup every time. Commit and push.
-
-When foreign language phrase contains blocks delimited by "pipe" (`|`), they are possible alternatives. Any of these phrases is acceptable answer.
+When a foreign language phrase contains blocks delimited by "pipe" (`|`), the blocks are possible alternatives. Any of these phrases is acceptable answer.
 
 Each practice will consist of given number of phrases. Let user choose the length of training during setup. During practice, show progress bar. Only correct answers counts, fails does not count to the progress.
 
 ==================
+
+DONE: Enable the app to remember setup in config file so that user does not need to setup every time. Commit and push.
 
 DONE: Create a git repository. Commit current state. Create new remote repository vocab-trainer and push.
 

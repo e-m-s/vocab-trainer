@@ -5,6 +5,7 @@ Run with:  python vocab_trainer.py
 Requires:  pandas, odfpy  (pip install pandas odfpy)
 """
 
+import json
 import os
 import random
 import shutil
@@ -16,6 +17,8 @@ import pandas as pd
 
 COOLDOWN = timedelta(minutes=30)
 CREATE_NEW = "<create new column…>"
+CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".vocab_trainer_config.json")
+COLUMN_ROLES = ("native", "foreign", "fails", "last", "attempts")
 
 
 # ---------------------------------------------------------------------------
@@ -656,7 +659,8 @@ class App(tk.Tk):
             frame.place(relwidth=1, relheight=1)
 
         self.build_menu()
-        self.show_frame("setup")
+        if not self.autoload_remembered_setup():
+            self.show_frame("setup")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def build_menu(self):
@@ -687,6 +691,51 @@ class App(tk.Tk):
     def on_data_ready(self):
         self.update_title_dirty()
         self.show_frame("practice")
+        self.remember_setup()
+
+    def remember_setup(self):
+        data = {
+            "path": self.store.path,
+            "sheet": self.sheet_name,
+            "columns": {role: getattr(self.cols, role) for role in COLUMN_ROLES},
+        }
+        try:
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except OSError:
+            pass
+
+    def autoload_remembered_setup(self):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return False
+
+        path = data.get("path")
+        sheet = data.get("sheet")
+        columns = data.get("columns", {})
+        if not path or not sheet or not all(role in columns for role in COLUMN_ROLES):
+            return False
+        if not os.path.exists(path):
+            return False
+
+        try:
+            store = VocabStore(path)
+        except Exception:
+            return False
+        if sheet not in store.sheet_names:
+            return False
+        df = store.sheets[sheet]
+        if not all(columns[role] in df.columns for role in COLUMN_ROLES):
+            return False
+
+        self.store = store
+        self.sheet_name = sheet
+        self.df = df
+        self.cols = ColumnMap(**{role: columns[role] for role in COLUMN_ROLES})
+        self.on_data_ready()
+        return True
 
     def mark_dirty(self):
         self.dirty = True

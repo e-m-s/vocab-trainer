@@ -76,6 +76,23 @@ class ColumnMap:
         self.attempts = attempts
 
 
+def ensure_writable_columns(df, cols):
+    """Widen the tracked columns to plain object dtype.
+
+    An existing column read from the spreadsheet may come back as a
+    numeric or all-NaN dtype (e.g. an empty "last attempt" column reads
+    as float64). Writing a string or int into such a column later via
+    df.at[...] raises pandas.errors.LossySetitemError, since pandas no
+    longer silently upcasts the column. Casting to object up front makes
+    every later assignment safe regardless of the column's original
+    contents.
+    """
+    for role in ("fails", "last", "attempts"):
+        col = getattr(cols, role)
+        if df[col].dtype != object:
+            df[col] = df[col].astype(object)
+
+
 class VocabStore:
     """Holds every sheet of one .ods file and knows how to save them back."""
 
@@ -346,9 +363,12 @@ class SetupFrame(ttk.Frame):
             messagebox.showerror("Duplicate columns", "Each role must map to a distinct column.")
             return
 
+        cols = ColumnMap(**resolved)
+        ensure_writable_columns(df, cols)
+
         self.app.sheet_name = sheet
         self.app.df = df
-        self.app.cols = ColumnMap(**resolved)
+        self.app.cols = cols
         self.app.practice_length = to_int(self.length_var.get(), default=20)
         self.app.on_data_ready()
 
@@ -809,10 +829,13 @@ class App(tk.Tk):
         if not all(columns[role] in df.columns for role in COLUMN_ROLES):
             return False
 
+        cols = ColumnMap(**{role: columns[role] for role in COLUMN_ROLES})
+        ensure_writable_columns(df, cols)
+
         self.store = store
         self.sheet_name = sheet
         self.df = df
-        self.cols = ColumnMap(**{role: columns[role] for role in COLUMN_ROLES})
+        self.cols = cols
         self.practice_length = to_int(data.get("practice_length"), default=20) or 20
         self.on_data_ready()
         return True
